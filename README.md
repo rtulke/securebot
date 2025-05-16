@@ -38,7 +38,7 @@ Read the following instructions if you don't know what to do ;-).
 
 Read also the documentation about Telegram.
 - [Telegram](https://telegram.org)
-- [Telegram Apps](https://telegram.org/apps)
+- [Download App](https://telegram.org/apps)
 - [Telegram API](https://telegram.org/api)
 
 ## Installation
