@@ -20,7 +20,7 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
 
 ## Preconditions Setup Telegram Bot
 
-Before we start installing the bot, you need a API Token within Telegram. You will receive a token from Telegram which we will use later for the configuration.
+Before we start installing the bot, you need a API Token within Telegram which we will use later for the configuration.
 
 Read the following instructions if you don't know what to do ;-).
 
