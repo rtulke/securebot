@@ -1,0 +1,15 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+    
+    # Example remote servers
+    # Uncomment and modify as needed
+    
+    # web_server:
+    #   ansible_host: webserver.example.com
+    #   ansible_user: admin
+    # 
+    # db_server:
+    #   ansible_host: db.example.com
+    #   ansible_user: admin
