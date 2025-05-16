@@ -18,6 +18,16 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
 - Fail2ban
 - Telegram Bot Token
 
+## Preconditions Setup Telegram Bot
+
+Before we start installing the bot, you need a bot within Telegram. You will receive a token from Telegram which we will use later for the configuration.
+
+Read the following instructions if you don't know what to do ;-).
+[a relative link](docs/setup_telegram_bot_english.md)
+[a relative link](docs/setup_telegram_bot_german.md)
+
+
+
 ## Installation
 
 ### Using the Ansible Playbook (Recommended)
