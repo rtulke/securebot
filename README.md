@@ -35,9 +35,11 @@ Read the following instructions if you don't know what to do ;-).
 - [Telegram Bot Setup (机器人设置指南（中文）)](docs/setup_telegram_bot_zh.md)
 - [Telegram Bot Setup (टेलीग्राम बॉट सेटअप गाइड (हिंदी))](docs/setup_telegram_bot_hi.md)
 - [Telegram Bot Setup (ボットセットアップガイド（日本語）)](docs/setup_telegram_bot_ja.md)
- 
 
-
+Read also the documentation about Telegram.
+- [Telegram](https://telegram.org)
+- [Telegram Apps](https://telegram.org/apps)
+- [Telegram API](https://telegram.org/api)
 
 ## Installation
 
