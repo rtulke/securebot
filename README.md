@@ -1,4 +1,4 @@
-# securebot - Telegram Security Bot
+# SecureBot - Telegram Security Bot
 
 A Telegram bot for monitoring SSH logins and managing fail2ban across multiple systems.
 
@@ -100,7 +100,7 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
    Add the following content:
    ```
    [Unit]
-   Description=securebot a Telegram Security Bot
+   Description=SecureBot a Telegram Security Bot
    After=network.target
 
    [Service]
@@ -115,7 +115,7 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
    WantedBy=multi-user.target
    ```
 
-8. Install the securebot script:
+8. Install the SecureBot script:
    ```bash
    sudo cp securebot.py /usr/local/sbin/securebot
    sudo chmod +x /usr/local/sbin/securebot
@@ -131,7 +131,7 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
 
 ## Configuration
 
-securebot uses a TOML configuration file. A default configuration can be generated with:
+SecureBot uses a TOML configuration file. A default configuration can be generated with:
 
 ```bash
 securebot.py -g
@@ -220,7 +220,7 @@ To monitor remote servers:
    echo "monitor ALL=NOPASSWD: /usr/bin/fail2ban-client status, /usr/bin/fail2ban-client status *" | sudo tee /etc/sudoers.d/monitor-fail2ban
    ```
 
-3. Add securebot's SSH key to the remote server:
+3. Add SecureBot's SSH key to the remote server:
    ```bash
    sudo mkdir -p /home/monitor/.ssh
    sudo cat /path/to/securebot_key.pub >> /home/monitor/.ssh/authorized_keys
