@@ -1,0 +1,236 @@
+---
+- name: Deploy SecureBot on servers
+  hosts: all
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: Ensure required packages are installed
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - fail2ban
+          - sudo
+        state: present
+        update_cache: yes
+      register: package_install
+      when: ansible_os_family == "Debian"
+
+    - name: Create SecureBot user
+      user:
+        name: securebot
+        system: yes
+        shell: /bin/false
+        home: /var/lib/securebot
+        create_home: yes
+        comment: "SecureBot Service Account"
+
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: securebot
+        group: securebot
+        mode: '0750'
+      with_items:
+        - /etc/securebot
+        - /etc/securebot/keys
+        - /etc/securebot/known_hosts
+        - /var/lib/securebot
+        - /var/lib/securebot/logs
+
+    - name: Set up Python virtual environment
+      pip:
+        name:
+          - tomli
+          - tomli-w
+          - python-telegram-bot>=20.0
+          - paramiko>=2.11.0
+          - pyinotify>=0.9.6
+        virtualenv: /var/lib/securebot/venv
+        virtualenv_command: python3 -m venv
+
+    - name: Generate SSH key for SecureBot
+      user:
+        name: securebot
+        generate_ssh_key: yes
+        ssh_key_type: ed25519
+        ssh_key_file: /etc/securebot/keys/securebot_key
+      register: ssh_key_gen
+
+    - name: Copy SecureBot script
+      copy:
+        src: securebot.py
+        dest: /usr/local/sbin/securebot
+        owner: securebot
+        group: securebot
+        mode: '0750'
+
+    - name: Create symlink for SecureBot
+      file:
+        src: /usr/local/sbin/securebot
+        dest: /usr/bin/securebot
+        state: link
+
+    - name: Generate default configuration
+      shell: "/var/lib/securebot/venv/bin/python /usr/local/sbin/securebot -g -c /etc/securebot.conf"
+      args:
+        creates: /etc/securebot.conf
+
+    - name: Set correct permissions for config file
+      file:
+        path: /etc/securebot.conf
+        owner: root
+        group: securebot
+        mode: '0640'
+
+    - name: Update SecureBot configuration
+      blockinfile:
+        path: /etc/securebot.conf
+        backup: yes
+        block: |
+          [telegram]
+          bot_token = "{{ telegram_bot_token }}"
+          chat_id = "{{ telegram_chat_id }}"
+          admin_users = [{{ admin_users | join(', ') }}]
+          viewer_users = [{{ viewer_users | default([]) | join(', ') }}]
+
+          [general]
+          log_level = "{{ log_level | default('INFO') }}"
+          local_only = {{ local_only | default(false) | lower }}
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - TELEGRAM CONFIG"
+
+    - name: Add server configuration
+      blockinfile:
+        path: /etc/securebot.conf
+        backup: yes
+        block: |
+          [servers.{{ inventory_hostname }}]
+          hostname = "{{ ansible_host | default(inventory_hostname) }}"
+          ip = "{{ ansible_host | default(inventory_hostname) }}"
+          ssh_user = "monitor"
+          ssh_key_path = "/etc/securebot/keys/securebot_key"
+          ssh_port = {{ ansible_port | default(22) }}
+          host_key_path = "/etc/securebot/known_hosts/{{ inventory_hostname }}"
+          logs = { ssh = "/var/log/auth.log", fail2ban = "/var/log/fail2ban.log" }
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - SERVER {{ inventory_hostname }}"
+      when: inventory_hostname != "localhost" and not local_only | default(false)
+
+    # Configure fail2ban if needed
+    - name: Check if fail2ban is installed
+      stat:
+        path: /etc/fail2ban/jail.conf
+      register: fail2ban_installed
+
+    - name: Ensure fail2ban is configured for SSH
+      blockinfile:
+        path: /etc/fail2ban/jail.local
+        create: yes
+        block: |
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 5
+          findtime = 600
+          bantime = 3600
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - SSH JAIL"
+      when: fail2ban_installed.stat.exists
+      notify: restart fail2ban
+
+    # Create a monitor user for remote access if this is not localhost
+    - name: Create monitor user for remote access
+      user:
+        name: monitor
+        shell: /bin/bash
+        create_home: yes
+        system: yes
+      when: inventory_hostname != ansible_hostname
+
+    - name: Add monitor to sudo group
+      user:
+        name: monitor
+        groups: sudo
+        append: yes
+      when: inventory_hostname != ansible_hostname
+
+    - name: Create sudoers file for monitor
+      copy:
+        dest: /etc/sudoers.d/monitor-fail2ban
+        content: |
+          monitor ALL=NOPASSWD: /usr/bin/fail2ban-client status, /usr/bin/fail2ban-client status *, /usr/bin/fail2ban-client set * banip *, /usr/bin/fail2ban-client set * unbanip *
+        validate: 'visudo -cf %s'
+        mode: '0440'
+      when: inventory_hostname != ansible_hostname
+
+    - name: Ensure .ssh directory exists for monitor
+      file:
+        path: /home/monitor/.ssh
+        state: directory
+        owner: monitor
+        group: monitor
+        mode: '0700'
+      when: inventory_hostname != ansible_hostname
+
+    - name: Register SecureBot public key
+      slurp:
+        src: /etc/securebot/keys/securebot_key.pub
+      register: securebot_pubkey
+      when: inventory_hostname == ansible_hostname
+
+    - name: Set fact for SecureBot public key
+      set_fact:
+        securebot_public_key: "{{ securebot_pubkey.content | b64decode }}"
+      when: inventory_hostname == ansible_hostname
+
+    - name: Add SecureBot public key to remote hosts
+      authorized_key:
+        user: monitor
+        state: present
+        key: "{{ hostvars[groups['all'][0]].securebot_public_key }}"
+      when: inventory_hostname != ansible_hostname and hostvars[groups['all'][0]].securebot_public_key is defined
+
+    - name: Create systemd service file
+      copy:
+        dest: /etc/systemd/system/securebot.service
+        content: |
+          [Unit]
+          Description=SecureBot Telegram Security Bot
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=securebot
+          Group=securebot
+          ExecStart=/var/lib/securebot/venv/bin/python /usr/local/sbin/securebot -d -c /etc/securebot.conf -l /var/lib/securebot/logs/securebot.log
+          Restart=on-failure
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart securebot
+
+    - name: Enable and start securebot service
+      systemd:
+        name: securebot
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+  handlers:
+    - name: restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted
+
+    - name: restart securebot
+      systemd:
+        name: securebot
+        state: restarted
