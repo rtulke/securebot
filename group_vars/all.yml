@@ -1,0 +1,24 @@
+# Telegram bot configuration
+telegram_bot_token: "YOUR_BOT_TOKEN"  # Your Telegram bot token from BotFather
+telegram_chat_id: "YOUR_CHAT_ID"      # Your Telegram chat ID or group ID
+
+# Admin and viewer users
+admin_users:
+  - 123456789  # Your Telegram User ID (admin)
+viewer_users:
+  - 987654321  # Optional: Other users who can view but not manage
+
+# Bot configuration
+log_level: "INFO"     # DEBUG, INFO, WARNING, ERROR
+local_only: false     # Set to true to only monitor the local system
+
+# Notification settings
+notification_settings:
+  ssh_login: true
+  fail2ban_block: true
+  server_unreachable: true
+
+# Customization
+customization:
+  resolve_hostnames: true
+  show_ipinfo_link: true
