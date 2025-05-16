@@ -45,7 +45,13 @@ Read also the documentation about Telegram.
 
 ### Using the Ansible Playbook (Recommended)
 
-Install Ansible & Git on your device if you want to deploy to your local system
+Install Ansible & Git on your device if you want to deploy from your local system to your local system or other systems.
+
+With the Ansible role, you have 2 options for installing the SecureBot. You can roll it out locally on the same system where you start the playbook or you can configure it so that it is immediately configured on other servers. The SecureBot is able to read the logs from other servers.
+
+However, it is also possible to install the SecureBot “locally” on each system by not specifying the other servers in the inventory.yml file, but then reinstalling the Ansible role locally on each system and thus also the SecureBot again and again.
+
+So that the SecureBot can collect data from other servers via SSH-Key, the role is equipped with appropriate rights and a dedicated SSH key is created for each system. Both are possible and you have better control over the security of your systems.
 
 ## Preconditions for debian based OS
 
