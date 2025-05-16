@@ -85,6 +85,7 @@ So that you can automatically install the securebot on your local or other Linux
    ```
 
 3. Edit the `group_vars/all.yml` file to customize your deployment:
+   
    As described above, you will need the API token from your bot created via BotFather as well as the channel ID and your own Telegram ID. Otherwise see above in the section “Preconditions Setup Telegram Bot” if you do not know how to get this ID. I have explained it in more detail there.
    
    ```yaml
