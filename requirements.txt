@@ -1,0 +1,5 @@
+tomli>=2.0.1
+tomli-w>=1.0.0
+python-telegram-bot>=20.0
+paramiko>=2.11.0
+pyinotify>=0.9.6
