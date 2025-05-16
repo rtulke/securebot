@@ -45,24 +45,37 @@ Read also the documentation about Telegram.
 
 ### Using the Ansible Playbook (Recommended)
 
-1. Clone this repository:
+Install Ansible & Git on your device if you want to deploy to your local system
+
+## Preconditions for debian based OS
+
+So that you can automatically install the securebot on your local or other Linux servers with the Ansible role, you first need the packages `ansible` and `git` on your workstation. You also have the option of installing SecureBot on the same workstation.
+
+1. Install packages on you workstation or server:
+   ```bash
+   sudo apt update && apt upgrade
+   sudo apt install ansible git -y
+   ```
+
+2. Clone this repository:
    ```bash
    git clone https://github.com/rtulke/securebot.git
    cd securebot
    ```
 
-2. Edit the `inventory.yml` file to specify your servers:
+3. Edit the `inventory.yml` file to specify your servers:
    ```yaml
    all:
      hosts:
        localhost:
-         ansible_connection: local
-       web_server:
-         ansible_host: webserver.example.com
-         ansible_user: admin
-       db_server:
-         ansible_host: db.example.com
-         ansible_user: admin
+         ansible_connection: local             # For local installation on the same host
+     ## Activate this part if you want to install on other computers:
+     # web_server:
+     #   ansible_host: webserver.example.com
+     #   ansible_user: admin                   # The user requires extended authorizations p.e. /etc/sudoers so that he can carry out the automatic configuration.
+     # db_server:
+     #   ansible_host: db.example.com
+     #   ansible_user: admin                   # The user requires extended authorizations p.e. /etc/sudoers so that he can carry out the automatic configuration.
    ```
 
 3. Edit the `group_vars/all.yml` file to customize your deployment:
