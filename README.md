@@ -162,6 +162,7 @@ So that you can automatically install the securebot on your local or other Linux
    sudo systemctl daemon-reload
    sudo systemctl enable securebot
    sudo systemctl start securebot
+   sudo systemctl status securebot
    ```
 
 ## Configuration
