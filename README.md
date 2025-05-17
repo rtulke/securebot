@@ -276,7 +276,7 @@ To monitor remote servers:
 ## Troubleshooting
 
 - Check the logs: `journalctl -u securebot`
-- Check the Python Script: `sudo -u securebot /var/lib/securebot/venv/bin/python /usr/local/sbin/securebot -d -c /etc/securebot.conf`
+- Check the Python Script: `sudo -u securebot /var/lib/securebot/venv/bin/python /usr/local/sbin/securebot -c /etc/securebot.conf`
 - Verify the bot can connect to Telegram API
 - Ensure proper permissions for log files
 - Test SSH connections manually
