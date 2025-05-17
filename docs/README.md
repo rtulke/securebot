@@ -1,3 +1,7 @@
+# Preconditions Setup Telegram Bot
+
+Before we start installing the bot, you need a API Token within Telegram which we will use later for the configuration.
+
 - [Telegram Bot Setup (English)](docs/setup_telegram_bot_en.md)
 - [Telegram Bot Setup (Deutsch)](docs/setup_telegram_bot_de.md)
 - [Telegram Bot Setup (Español)](docs/setup_telegram_bot_es.md)
