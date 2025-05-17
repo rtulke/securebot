@@ -532,14 +532,19 @@ class FileWatcher:
                     # Process each new line
                     for line in new_content.splitlines():
                         if line.strip():
-                            asyncio.run_coroutine_threadsafe(
-                                self.callback(line, self.server_name),
-                                asyncio.get_event_loop()
-                            )
+                            # Erstelle einen neuen Event-Loop für diesen Thread, wenn keiner vorhanden ist
+                            try:
+                                loop = asyncio.get_event_loop()
+                            except RuntimeError:
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                            
+                            # Führe die Koroutine synchron aus
+                            loop.run_until_complete(self.callback(line, self.server_name))
                 
                 except Exception as e:
                     logger.error(f"Error processing file change: {e}")
-    
+       
     @staticmethod
     def start_watching(file_path: str, callback, server_name: Optional[str] = None) -> Optional[pyinotify.WatchManager]:
         """Start watching a file for changes"""

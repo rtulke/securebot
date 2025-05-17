@@ -28,6 +28,18 @@
         create_home: yes
         comment: "SecureBot Service Account"
 
+
+    # sudo usermod -a -G adm securebot
+    # alternative to the following:
+    # sudo setfacl -m u:securebot:r /var/log/auth.log
+    # sudo setfacl -m u:securebot:r /var/log/fail2ban.log
+
+    - name: Add securebot user to adm group for log access
+      user:
+        name: securebot
+        groups: adm
+        append: yes
+
     - name: Create required directories
       file:
         path: "{{ item }}"
