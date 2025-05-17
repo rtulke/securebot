@@ -571,31 +571,31 @@ class FileWatcher:
             return None
     
     @staticmethod
-    def stop_watching(server_name: Optional[str] = None):
-        """Stop watching files"""
-        if server_name and server_name in NOTIFIERS:
-            for notifier in NOTIFIERS[server_name]:
+def stop_watching(server_name: Optional[str] = None):
+    """Stop watching files"""
+    if server_name and server_name in NOTIFIERS:
+        for notifier in NOTIFIERS[server_name]:
+            try:
+                notifier.stop()
+            except:
+                pass
+        
+        NOTIFIERS[server_name] = []
+        WATCH_MANAGERS[server_name] = []
+        logger.info(f"Stopped watching files on {server_name}")
+    
+    elif server_name is None:
+        # Stop all notifiers
+        for server, notifiers in NOTIFIERS.items():
+            for notifier in notifiers:
                 try:
                     notifier.stop()
                 except:
                     pass
-            
-            NOTIFIERS[server_name] = []
-            WATCH_MANAGERS[server_name] = []
-            logger.info(f"Stopped watching files on {server_name}")
         
-        elif server_name is None:
-            # Stop all notifiers
-            for server, notifiers in NOTIFIERS.items():
-                for notifier in notifiers:
-                    try:
-                        notifier.stop()
-                    except:
-                        pass
-            
-            NOTIFIERS.clear()
-            WATCH_MANAGERS.clear()
-            logger.info("Stopped all file watchers")
+        NOTIFIERS.clear()
+        WATCH_MANAGERS.clear()
+        logger.info("Stopped all file watchers")
 
 async def setup_remote_watcher(server_name: str, server_config: dict):
     """Set up remote log monitoring via SSH"""
@@ -928,6 +928,14 @@ async def login_history_command(update: Update, context: CallbackContext) -> Non
 
 async def server_command(update: Update, context: CallbackContext) -> None:
     """Handle the /server command"""
+    # Check if the update is a message or callback query
+    if update.message is None:
+        # try to get the message from the callback query
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.edit_message_text("Verwendung:\n/server list - Liste aller konfigurierten Server\n/server status NAME - Status eines bestimmten Servers anzeigen")
+        return
+    
     user_id = update.effective_user.id
     if not is_authorized(user_id):
         await update.message.reply_text("Unauthorized access. Contact the bot administrator.")
