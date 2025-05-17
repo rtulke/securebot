@@ -575,7 +575,10 @@ class FileWatcher:
         """Stop watching files"""
         if server_name and server_name in NOTIFIERS:
             for notifier in NOTIFIERS[server_name]:
-                notifier.stop()
+                try:
+                    notifier.stop()
+                except:
+                    pass
             
             NOTIFIERS[server_name] = []
             WATCH_MANAGERS[server_name] = []
@@ -585,7 +588,10 @@ class FileWatcher:
             # Stop all notifiers
             for server, notifiers in NOTIFIERS.items():
                 for notifier in notifiers:
-                    notifier.stop()
+                    try:
+                        notifier.stop()
+                    except:
+                        pass
             
             NOTIFIERS.clear()
             WATCH_MANAGERS.clear()
@@ -1398,7 +1404,27 @@ def handle_signal(signum, frame):
     
     logger.info(f"Received signal {signum}, shutting down...")
     RUNNING = False
-
+    
+    # stop all notifiers immediately
+    FileWatcher.stop_watching()
+    
+    # close all SSH connections
+    for server_name, client in SSH_CLIENTS.items():
+        if client:
+            try:
+                client.close()
+                logger.info(f"Closed SSH connection to {server_name}")
+            except:
+                pass
+    # stop asyncio Event-Loop for next run
+    if asyncio.get_event_loop().is_running():
+        asyncio.get_event_loop().stop()
+    
+    # when SIGTERM signal is received, exit immediately
+    if signum == signal.SIGTERM:
+        logger.info("Terminating immediately due to SIGTERM")
+        sys.exit(0)
+        
 def main():
     """Main function"""
     global CONFIG
