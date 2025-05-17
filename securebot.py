@@ -571,31 +571,31 @@ class FileWatcher:
             return None
     
     @staticmethod
-def stop_watching(server_name: Optional[str] = None):
-    """Stop watching files"""
-    if server_name and server_name in NOTIFIERS:
-        for notifier in NOTIFIERS[server_name]:
-            try:
-                notifier.stop()
-            except:
-                pass
-        
-        NOTIFIERS[server_name] = []
-        WATCH_MANAGERS[server_name] = []
-        logger.info(f"Stopped watching files on {server_name}")
-    
-    elif server_name is None:
-        # Stop all notifiers
-        for server, notifiers in NOTIFIERS.items():
-            for notifier in notifiers:
+    def stop_watching(server_name: Optional[str] = None):
+        """Stop watching files"""
+        if server_name and server_name in NOTIFIERS:
+            for notifier in NOTIFIERS[server_name]:
                 try:
                     notifier.stop()
                 except:
                     pass
+            
+            NOTIFIERS[server_name] = []
+            WATCH_MANAGERS[server_name] = []
+            logger.info(f"Stopped watching files on {server_name}")
         
-        NOTIFIERS.clear()
-        WATCH_MANAGERS.clear()
-        logger.info("Stopped all file watchers")
+        elif server_name is None:
+            # Stop all notifiers
+            for server, notifiers in NOTIFIERS.items():
+                for notifier in notifiers:
+                    try:
+                        notifier.stop()
+                    except:
+                        pass
+            
+            NOTIFIERS.clear()
+            WATCH_MANAGERS.clear()
+            logger.info("Stopped all file watchers")
 
 async def setup_remote_watcher(server_name: str, server_config: dict):
     """Set up remote log monitoring via SSH"""
