@@ -1074,6 +1074,20 @@ async def server_command(update: Update, context: CallbackContext) -> None:
 
 async def fail2ban_command(update: Update, context: CallbackContext) -> None:
     """Handle the /fail2ban command"""
+    # verify if the update is a message or callback query
+    if update.message is None:
+        # try to get the message from the callback query
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.edit_message_text(
+                "Verwendung:\n"
+                "/fail2ban list [server] - Listet fail2ban Jails auf\n"
+                "/fail2ban status JAIL [server] - Zeigt blockierte IPs in einem Jail\n"
+                "/fail2ban ban IP JAIL [server] - Blockiert eine IP in einem Jail\n"
+                "/fail2ban unban IP JAIL [server] - Entsperrt eine IP in einem Jail"
+            )
+        return
+        
     user_id = update.effective_user.id
     if not is_authorized(user_id) or not is_admin_user(user_id):
         await update.message.reply_text("Unauthorized access. Admin privileges required.")
