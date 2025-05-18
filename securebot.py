@@ -1102,6 +1102,7 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
             await update.callback_query.edit_message_text(
                 "Usage:\n"
                 "/fail2ban all - Show all banned IPs\n"
+                "/fail2ban all_ips - Show all banned IPs\n"
                 "/fail2ban list [server] - List fail2ban jails\n"
                 "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
                 "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
@@ -1121,6 +1122,7 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "Usage:\n"
             "/fail2ban all - Show all banned IPs\n"
+            "/fail2ban all_ips - Show all banned IPs\n"
             "/fail2ban list [server] - List fail2ban jails\n"
             "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
             "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
@@ -1277,6 +1279,7 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "Usage:\n"
             "/fail2ban all - Show all banned IPs\n"
+            "/fail2ban all_ips - Show all banned IPs\n"
             "/fail2ban list [server] - List fail2ban jails\n"
             "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
             "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
