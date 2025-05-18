@@ -179,6 +179,14 @@
         mode: '0440'
       when: inventory_hostname != ansible_hostname
 
+    - name: Create sudoers file for securebot
+      copy:
+        dest: /etc/sudoers.d/securebot-fail2ban
+        content: |
+          securebot ALL=NOPASSWD: /usr/bin/fail2ban-client status, /usr/bin/fail2ban-client status *, /usr/bin/fail2ban-client set * banip *, /usr/bin/fail2ban-client set * unbanip *
+        validate: 'visudo -cf %s'
+        mode: '0440'
+
     - name: Ensure .ssh directory exists for monitor
       file:
         path: /home/monitor/.ssh
