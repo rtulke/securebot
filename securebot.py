@@ -417,7 +417,9 @@ class Fail2BanManager:
     @staticmethod
     async def unban_ip(ip: str, jail: str, server_name: Optional[str] = None) -> Tuple[bool, str]:
         """Unban an IP from a specific jail"""
+        logger.critical(f"Unban request with ip={ip}, jail={jail}")
         command = f"sudo fail2ban-client set {jail} unbanip {ip}"
+        logger.critical(f"Executing command: {command}")
         
         if server_name:
             return await SSHManager.execute_command(server_name, command)
