@@ -1428,21 +1428,24 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
     # Check if the subcommand is valid
     elif subcommand == "unban" and len(args) > 2:
         # Unban an IP from a jail
-        ip = args[1]
-        jail = args[2]
-        server_name = args[3] if len(args) > 3 else None
+        jail = args[1]  # first parameter die jail
+        ip = args[2]    # second parameter die ip 
+        server_name = args[3] if len(args) > 3 else None    # third parameter die server_name
         
-        # Check if server name is valid
+        # Check if server name is valid 
         if server_name and server_name not in CONFIG.get("servers", {}):
             await update.message.reply_text(f"Unknown server: {server_name}")
             return
+        
+        # Debug log
+        logger.debug(f"Executing unban from command with jail={jail}, ip={ip}, server={server_name}")
         
         success, result = await Fail2BanManager.unban_ip(ip, jail, server_name)
         
         if success:
             await update.message.reply_text(f"✅ Successfully unbanned {ip} from jail '{jail}' on {server_name or 'localhost'}.")
         else:
-            await update.message.reply_text(f"❌ Failed to unban {ip}: {result}")
+            await update.message.reply_text(f"❌ Failed to unban {jail}: {result}")
     
     else:
         await update.message.reply_text(
