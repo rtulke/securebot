@@ -908,14 +908,34 @@ async def notify_telegram(message: str, buttons: Optional[List[List[InlineKeyboa
         return
     
     try:
+        logger.debug(f"Sending message to chat_id: {chat_id}")
+        logger.debug(f"Message content: {message[:100]}...")  # Log part of the message
+        
         if buttons:
             markup = InlineKeyboardMarkup(buttons)
+            # send directly using bot.send_message instead of do_post
             await bot.send_message(chat_id=chat_id, text=message, reply_markup=markup)
         else:
+            # send directly using bot.send_message instead of do_post
             await bot.send_message(chat_id=chat_id, text=message)
+        
+        logger.info("Notification sent successfully")
     
+    except telegram.error.BadRequest as e:
+        # specific error handling for BadRequest
+        logger.error(f"Telegram API error (BadRequest): {e}")
+        if "Chat not found" in str(e):
+            logger.error(f"Chat ID '{chat_id}' not found. Make sure your chat_id is correct and the bot has been started in this chat.")
+    except telegram.error.Forbidden as e:
+        # bot was removed from the chat or doesn't have permission to send messages
+        logger.error(f"Telegram API error (Forbidden): {e}")
+        logger.error("Bot may have been removed from the chat or doesn't have permission to send messages.")
     except Exception as e:
         logger.error(f"Error sending Telegram notification: {e}")
+        logger.error(f"Full error type: {type(e)}")
+        # full traceback for debugging
+        import traceback
+        logger.debug(f"Exception traceback: {traceback.format_exc()}")
 
 async def start_command(update: Update, context: CallbackContext) -> None:
     """Handle the /start command"""
