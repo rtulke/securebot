@@ -457,6 +457,16 @@ class LogParser:
     FAIL2BAN_UNBAN_PATTERN_NEW = re.compile(
         r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)'
     )
+    # old fail2ban already banned pattern
+    FAIL2BAN_ALREADY_BANNED_PATTERN_OLD = re.compile(
+        r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
+    )
+    
+    # new fail2ban already banned pattern
+    FAIL2BAN_ALREADY_BANNED_PATTERN_NEW = re.compile(
+        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
+    )
+    
     
     @staticmethod
     async def parse_ssh_log_line(line: str, server_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -500,6 +510,8 @@ class LogParser:
         ban_match_new = LogParser.FAIL2BAN_BAN_PATTERN_NEW.match(line)
         unban_match_old = LogParser.FAIL2BAN_UNBAN_PATTERN_OLD.match(line)
         unban_match_new = LogParser.FAIL2BAN_UNBAN_PATTERN_NEW.match(line)
+        already_banned_old = LogParser.FAIL2BAN_ALREADY_BANNED_PATTERN_OLD.match(line)
+        already_banned_new = LogParser.FAIL2BAN_ALREADY_BANNED_PATTERN_NEW.match(line)
         
         if ban_match_old:
             timestamp, jail, ip = ban_match_old.groups()
@@ -513,6 +525,12 @@ class LogParser:
         elif unban_match_new:
             timestamp, jail, ip = unban_match_new.groups()
             event_type = "unban"
+        elif already_banned_old:
+            timestamp, jail, ip = already_banned_old.groups()
+            event_type = "already_banned"
+        elif already_banned_new:
+            timestamp, jail, ip = already_banned_new.groups()
+            event_type = "already_banned"
         else:
             logger.debug(f"No match for fail2ban log line: {line}")
             return None
@@ -533,7 +551,7 @@ class LogParser:
                 hostname = socket.gethostbyaddr(ip)[0]
             except (socket.herror, socket.gaierror):
                 pass
-    
+        
         event = {
             "type": f"fail2ban_{event_type}",
             "timestamp": timestamp,
@@ -768,6 +786,7 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
     logger.debug(f"Parsed event: {event}")
     
     if event:
+        # Handle regular ban events
         if event["type"] == "fail2ban_ban" and CONFIG["notifications"].get("fail2ban_block", True):
             # Check if notifications are muted
             if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
@@ -784,6 +803,43 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             message = (
                 f"🛑 IP Banned by fail2ban\n"
                 f"IP: {hostname} ({ip})\n"
+                f"Jail: {jail}\n"
+                f"Server: {server}\n"
+                f"Time: {event['timestamp']}"
+            )
+            
+            # Add IPinfo link if configured
+            if CONFIG["customization"].get("show_ipinfo_link", True):
+                message += f"\nMore Info: https://ipinfo.io/{ip}"
+            
+            buttons = [
+                [InlineKeyboardButton(
+                    f"Unban {ip}", 
+                    callback_data=f"unban_{server}_{jail}_{ip}"
+                )]
+            ]
+            
+            await notify_telegram(message, buttons)
+            
+        # Handle "already banned" events if configured
+        elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
+            # Optional: Benachrichtigungen für "already banned" können separat konfiguriert werden
+            # Für jetzt nutzen wir die gleiche Einstellung wie für normale Blockierungen
+            
+            # Check if notifications are muted
+            if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
+                return
+            
+            ip = event["ip"]
+            jail = event["jail"]
+            server = event["server"]
+            hostname = event["hostname"] or ip
+            
+            logger.info(f"Sending notification for already banned event: {ip} in {jail} on {server}")
+            
+            message = (
+                f"⚠️ Repeated Access Attempt\n"
+                f"IP: {hostname} ({ip}) attempted access while already banned\n"
                 f"Jail: {jail}\n"
                 f"Server: {server}\n"
                 f"Time: {event['timestamp']}"
