@@ -1490,7 +1490,7 @@ async def run_daemon():
         # Set up local file watchers
         await setup_local_watchers()
         
-        # Als Backup: Periodische Überprüfung der lokalen Logs
+        # As Backup for local log files, we can use periodic checks
         if CONFIG["local"].get("fail2ban_log") and os.path.exists(CONFIG["local"].get("fail2ban_log")):
             logger.info(f"Setting up periodic checks for local fail2ban log")
             asyncio.create_task(periodic_check_log(
@@ -1500,6 +1500,7 @@ async def run_daemon():
                 interval=5
             ))
         
+        # As Backup for local log files, we can use periodic checks
         if CONFIG["local"].get("ssh_log") and os.path.exists(CONFIG["local"].get("ssh_log")):
             logger.info(f"Setting up periodic checks for local SSH log")
             asyncio.create_task(periodic_check_log(
