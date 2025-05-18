@@ -984,6 +984,10 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 async def status_command(update: Update, context: CallbackContext) -> None:
     """Handle the /status command"""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    message = f"Debug Info:\nUser ID: {user_id}\nChat ID: {chat_id}\n\n"
+    await update.message.reply_text(message)
+    
     if not is_authorized(user_id):
         await update.message.reply_text("Unauthorized access. Contact the bot administrator.")
         return
