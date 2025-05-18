@@ -35,7 +35,7 @@ from telegram.ext import (
 import paramiko
 import pyinotify
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # Set up logging
 logging.basicConfig(
@@ -318,7 +318,24 @@ class SSHManager:
 
 class Fail2BanManager:
     """Manage fail2ban operations"""
+    # command /fail2ban all
+    @staticmethod
+    async def get_all_banned_ips(server_name: Optional[str] = None) -> Dict[str, List[str]]:
+        """Get all banned IPs from all jails"""
+        success, jails = await Fail2BanManager.list_jails(server_name)
+        
+        if not success or not jails:
+            return {}
+        
+        results = {}
+        for jail in jails:
+            success, ips = await Fail2BanManager.get_banned_ips(jail, server_name)
+            if success and ips:
+                results[jail] = ips
+        
+        return results 
     
+    # command /fail2ban list
     @staticmethod
     async def list_jails(server_name: Optional[str] = None) -> Tuple[bool, List[str]]:
         """List all fail2ban jails"""
@@ -347,6 +364,7 @@ class Fail2BanManager:
         jails = [jail.strip() for jail in result.split(",")]
         return True, jails
     
+    # command /fail2ban status JAIL
     @staticmethod
     async def get_banned_ips(jail: str, server_name: Optional[str] = None) -> Tuple[bool, List[str]]:
         """Get list of IPs banned in a specific jail"""
@@ -378,6 +396,7 @@ class Fail2BanManager:
         ips = [ip.strip() for ip in result.split()]
         return True, ips
     
+    # command /fail2ban banip IP JAIL
     @staticmethod
     async def ban_ip(ip: str, jail: str, server_name: Optional[str] = None) -> Tuple[bool, str]:
         """Ban an IP in a specific jail"""
@@ -394,6 +413,7 @@ class Fail2BanManager:
                 logger.error(f"Error banning IP {ip} in jail {jail}: {e}")
                 return False, str(e)
     
+    # command /fail2ban unbanip IP JAIL
     @staticmethod
     async def unban_ip(ip: str, jail: str, server_name: Optional[str] = None) -> Tuple[bool, str]:
         """Unban an IP from a specific jail"""
@@ -1080,11 +1100,12 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         if update.callback_query:
             await update.callback_query.answer()
             await update.callback_query.edit_message_text(
-                "Verwendung:\n"
-                "/fail2ban list [server] - Listet fail2ban Jails auf\n"
-                "/fail2ban status JAIL [server] - Zeigt blockierte IPs in einem Jail\n"
-                "/fail2ban ban IP JAIL [server] - Blockiert eine IP in einem Jail\n"
-                "/fail2ban unban IP JAIL [server] - Entsperrt eine IP in einem Jail"
+                "Usage:\n"
+                "/fail2ban all - Show all banned IPs\n"
+                "/fail2ban list [server] - List fail2ban jails\n"
+                "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
+                "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
+                "/fail2ban unban IP JAIL [server] - Unban an IP from a jail"
             )
         return
         
@@ -1099,6 +1120,7 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
     if not args:
         await update.message.reply_text(
             "Usage:\n"
+            "/fail2ban all - Show all banned IPs\n"
             "/fail2ban list [server] - List fail2ban jails\n"
             "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
             "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
@@ -1108,16 +1130,19 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
     
     subcommand = args[0].lower()
     
+    # Check if the subcommand is valid
     if subcommand == "list":
         # List all fail2ban jails
         server_name = args[1] if len(args) > 1 else None
         
+        # Check if server name is valid
         if server_name and server_name not in CONFIG.get("servers", {}):
             await update.message.reply_text(f"Unknown server: {server_name}")
             return
         
         success, jails = await Fail2BanManager.list_jails(server_name)
         
+        # check if jails are valid
         if success and jails:
             message = f"🔒 fail2ban jails on {server_name or 'localhost'}:\n\n"
             message += "\n".join([f"- {jail}" for jail in jails])
@@ -1126,17 +1151,57 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         
         await update.message.reply_text(message)
     
+    # Check if the subcommand is valid
+    elif subcommand == "all" or subcommand == "all_ips":
+        # Show all banned IPs from all jails
+        server_name = args[1] if len(args) > 1 else None
+        
+        if server_name and server_name not in CONFIG.get("servers", {}):
+            await update.message.reply_text(f"Unknown server: {server_name}")
+            return
+        
+        all_ips = await Fail2BanManager.get_all_banned_ips(server_name)
+        
+        if all_ips:
+            message = f"🛑 All banned IPs on {server_name or 'localhost'}:\n\n"
+            
+            for jail, ips in all_ips.items():
+                message += f"Jail '{jail}':\n"
+                if ips:
+                    for ip in ips:
+                        hostname = None
+                        if CONFIG["customization"].get("resolve_hostnames", True):
+                            try:
+                                hostname = socket.gethostbyaddr(ip)[0]
+                            except (socket.herror, socket.gaierror):
+                                pass
+                        
+                        message += f"- {ip}"
+                        if hostname:
+                            message += f" ({hostname})"
+                        message += "\n"
+                else:
+                    message += "- No banned IPs\n"
+                message += "\n"
+            
+            await update.message.reply_text(message)
+        else:
+            await update.message.reply_text(f"No banned IPs found on {server_name or 'localhost'}.")
+    
+    # Check if the subcommand is valid
     elif subcommand == "status" and len(args) > 1:
         # Show banned IPs in a jail
         jail = args[1]
         server_name = args[2] if len(args) > 2 else None
         
+        # Check if server name is valid
         if server_name and server_name not in CONFIG.get("servers", {}):
             await update.message.reply_text(f"Unknown server: {server_name}")
             return
         
         success, ips = await Fail2BanManager.get_banned_ips(jail, server_name)
         
+        # check if ips are valid
         if success:
             if ips:
                 message = f"🛑 Banned IPs in jail '{jail}' on {server_name or 'localhost'}:\n\n"
@@ -1170,12 +1235,14 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         else:
             await update.message.reply_text(f"Failed to get banned IPs from jail '{jail}'.")
     
+    # Check if the subcommand is valid
     elif subcommand == "ban" and len(args) > 2:
         # Ban an IP in a jail
         ip = args[1]
         jail = args[2]
         server_name = args[3] if len(args) > 3 else None
         
+        # Check if server name is valid
         if server_name and server_name not in CONFIG.get("servers", {}):
             await update.message.reply_text(f"Unknown server: {server_name}")
             return
@@ -1187,12 +1254,14 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
         else:
             await update.message.reply_text(f"❌ Failed to ban {ip}: {result}")
     
+    # Check if the subcommand is valid
     elif subcommand == "unban" and len(args) > 2:
         # Unban an IP from a jail
         ip = args[1]
         jail = args[2]
         server_name = args[3] if len(args) > 3 else None
         
+        # Check if server name is valid
         if server_name and server_name not in CONFIG.get("servers", {}):
             await update.message.reply_text(f"Unknown server: {server_name}")
             return
@@ -1207,6 +1276,7 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
     else:
         await update.message.reply_text(
             "Usage:\n"
+            "/fail2ban all - Show all banned IPs\n"
             "/fail2ban list [server] - List fail2ban jails\n"
             "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
             "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
