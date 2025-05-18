@@ -229,7 +229,22 @@ class SSHManager:
         close_after = False
         
         try:
-            # If no client provided, establish a new connection
+            # Wenn server_name 'localhost' oder None ist, führe lokal aus
+            if server_name is None or server_name == "localhost":
+                try:
+                    result = subprocess.check_output(
+                        command, 
+                        shell=True, 
+                        text=True,
+                        stderr=subprocess.PIPE
+                    ).strip()
+                    return True, result
+                except subprocess.CalledProcessError as e:
+                    error_msg = e.stderr.strip() if hasattr(e, 'stderr') and e.stderr else str(e)
+                    logger.error(f"Error executing local command: {error_msg}")
+                    return False, error_msg
+            
+            # Für entfernte Server
             if client is None:
                 if server_name not in CONFIG["servers"]:
                     return False, f"Unknown server: {server_name}"
