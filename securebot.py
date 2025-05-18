@@ -1487,6 +1487,28 @@ async def run_daemon():
     
     # Start monitoring
     if await start_monitoring():
+        # Set up local file watchers
+        await setup_local_watchers()
+        
+        # Als Backup: Periodische Überprüfung der lokalen Logs
+        if CONFIG["local"].get("fail2ban_log") and os.path.exists(CONFIG["local"].get("fail2ban_log")):
+            logger.info(f"Setting up periodic checks for local fail2ban log")
+            asyncio.create_task(periodic_check_log(
+                "localhost", 
+                CONFIG["local"].get("fail2ban_log"), 
+                process_fail2ban_log_line, 
+                interval=5
+            ))
+        
+        if CONFIG["local"].get("ssh_log") and os.path.exists(CONFIG["local"].get("ssh_log")):
+            logger.info(f"Setting up periodic checks for local SSH log")
+            asyncio.create_task(periodic_check_log(
+                "localhost", 
+                CONFIG["local"].get("ssh_log"), 
+                process_ssh_log_line, 
+                interval=5
+            ))
+        
         # Run the Telegram bot
         await run_telegram_bot()
     
