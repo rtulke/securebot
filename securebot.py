@@ -438,12 +438,24 @@ class LogParser:
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*sshd\[\d+\]:\s+Accepted\s+(?:publickey|password|keyboard-interactive/pam)\s+for\s+(\S+)\s+from\s+(\S+)'
     )
     
-    FAIL2BAN_BAN_PATTERN = re.compile(
+    # old fail2ban ban pattern
+    FAIL2BAN_BAN_PATTERN_OLD = re.compile(
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)'
     )
     
-    FAIL2BAN_UNBAN_PATTERN = re.compile(
+    # new fail2ban ban pattern
+    FAIL2BAN_BAN_PATTERN_NEW = re.compile(
+        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)'
+    )
+    
+    # old fail2ban unban pattern
+    FAIL2BAN_UNBAN_PATTERN_OLD = re.compile(
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)'
+    )
+    
+    # new fail2ban unban pattern
+    FAIL2BAN_UNBAN_PATTERN_NEW = re.compile(
+        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)'
     )
     
     @staticmethod
@@ -484,24 +496,35 @@ class LogParser:
     @staticmethod
     async def parse_fail2ban_log_line(line: str, server_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Parse fail2ban log line for ban/unban events"""
-        ban_match = LogParser.FAIL2BAN_BAN_PATTERN.match(line)
-        unban_match = LogParser.FAIL2BAN_UNBAN_PATTERN.match(line)
+        ban_match_old = LogParser.FAIL2BAN_BAN_PATTERN_OLD.match(line)
+        ban_match_new = LogParser.FAIL2BAN_BAN_PATTERN_NEW.match(line)
+        unban_match_old = LogParser.FAIL2BAN_UNBAN_PATTERN_OLD.match(line)
+        unban_match_new = LogParser.FAIL2BAN_UNBAN_PATTERN_NEW.match(line)
         
-        if ban_match:
-            timestamp, jail, ip = ban_match.groups()
+        if ban_match_old:
+            timestamp, jail, ip = ban_match_old.groups()
             event_type = "ban"
-        elif unban_match:
-            timestamp, jail, ip = unban_match.groups()
+        elif ban_match_new:
+            timestamp, jail, ip = ban_match_new.groups()
+            event_type = "ban"
+        elif unban_match_old:
+            timestamp, jail, ip = unban_match_old.groups()
+            event_type = "unban"
+        elif unban_match_new:
+            timestamp, jail, ip = unban_match_new.groups()
             event_type = "unban"
         else:
+            logger.debug(f"No match for fail2ban log line: {line}")
             return None
         
         # Create a unique event ID to prevent duplicate notifications
         event_id = f"fail2ban_{event_type}_{server_name}_{ip}_{jail}_{timestamp}"
         if event_id in KNOWN_EVENTS:
+            logger.debug(f"Duplicate event skipped: {event_id}")
             return None
         
         KNOWN_EVENTS.add(event_id)
+        logger.debug(f"New event detected: {event_id}")
         
         # Resolve hostname if configured
         hostname = None
@@ -509,8 +532,8 @@ class LogParser:
             try:
                 hostname = socket.gethostbyaddr(ip)[0]
             except (socket.herror, socket.gaierror):
-                hostname = None
-        
+                pass
+    
         event = {
             "type": f"fail2ban_{event_type}",
             "timestamp": timestamp,
@@ -519,6 +542,8 @@ class LogParser:
             "hostname": hostname,
             "server": server_name or "localhost"
         }
+        
+        logger.debug(f"Created event: {event}")
         
         return event
 
