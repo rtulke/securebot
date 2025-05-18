@@ -99,6 +99,63 @@ NOTIFIERS = {}
 KNOWN_EVENTS = set()
 RUNNING = True
 
+
+class NetworkUtils:
+    """Network-related utility functions"""
+    
+    @staticmethod
+    async def get_ip_info(ip: str) -> Dict[str, Any]:
+        """Get detailed information about an IP address using ipinfo.io"""
+        url = f"https://ipinfo.io/{ip}/json"
+        
+        try:
+            # Verwende httpx, da es bereits für Telegram verwendet wird
+            import httpx
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=5.0)
+                
+            if response.status_code == 200:
+                data = response.json()
+                # Erweitere mit Emoji-Flagge, wenn Land verfügbar
+                if "country" in data:
+                    country_code = data["country"]
+                    # Konvertiere Ländercode zu Emoji-Flagge (Unicode-Trick)
+                    flag = "".join(chr(ord(c) + 127397) for c in country_code)
+                    data["flag"] = flag
+                return data
+            else:
+                logger.warning(f"Failed to get IP info for {ip}: Status code {response.status_code}")
+                return {}
+        except Exception as e:
+            logger.error(f"Error getting IP info: {e}")
+            return {}
+
+class DateUtils:
+    """Date and time utility functions"""
+    
+    @staticmethod
+    def format_timestamp(timestamp: str) -> str:
+        """Format a timestamp according to configuration"""
+        try:
+            # check if timestamp is in the format YYYY-MM-DD HH:MM:SS,sss
+            if ',' in timestamp:  # 2025-05-18 17:36:28,767
+                dt_format = "%Y-%m-%d %H:%M:%S,%f"
+             
+                if timestamp.split(',')[1] and len(timestamp.split(',')[1]) > 3:
+                    timestamp = timestamp.split(',')[0] + ',' + timestamp.split(',')[1][:3]
+            else:  # May 18 17:36:28
+                dt_format = "%b %d %H:%M:%S"
+            
+            # convert to datetime object
+            dt = datetime.datetime.strptime(timestamp, dt_format)
+            
+            # uee custom date format from config
+            custom_format = CONFIG.get("customization", {}).get("date_format", "%d. %B %Y, %H:%M:%S")
+            return dt.strftime(custom_format)
+        except Exception as e:
+            logger.warning(f"Failed to format timestamp {timestamp}: {e}")
+            return timestamp  # return original timestamp if formatting fails
+
 class ConfigManager:
     """Handle configuration loading, saving and validation"""
     
@@ -833,17 +890,70 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             
             logger.info(f"Sending notification for ban event: {ip} in {jail} on {server}")
             
-            message = (
-                f"🛑 IP Banned by fail2ban\n"
-                f"IP: {hostname} ({ip})\n"
-                f"Jail: {jail}\n"
-                f"Server: {server}\n"
-                f"Time: {event['timestamp']}"
-            )
+            # Erweiterte IP-Informationen abrufen
+            ip_info = await NetworkUtils.get_ip_info(ip)
             
-            # Add IPinfo link if configured
+            # Formatierte Zeit
+            formatted_time = DateUtils.format_timestamp(event['timestamp'])
+            
+            # Nachricht mit erweiterter Formatierung erstellen
+            message = f"🛑 *IP Banned by fail2ban*\n\n"
+            
+            # Basisdaten
+            message += f"*IP:* {hostname} ({ip})\n"
+            message += f"*Jail:* {jail}\n"
+            message += f"*Server:* {server}\n"
+            message += f"*Time:* {formatted_time}\n\n"
+            
+            # Erweiterte Informationen hinzufügen, wenn verfügbar
+            if ip_info:
+                message += "📍 *IP Details:*\n"
+                
+                # Land mit Flagge
+                if "country" in ip_info and "flag" in ip_info:
+                    message += f"*Country:* {ip_info['flag']} {ip_info.get('country', '')}"
+                    if "region" in ip_info:
+                        message += f", {ip_info['region']}"
+                    message += "\n"
+                
+                # Stadt
+                if "city" in ip_info:
+                    message += f"*City:* {ip_info['city']}"
+                    if "postal" in ip_info:
+                        message += f" ({ip_info['postal']})"
+                    message += "\n"
+                
+                # Timezone & lokale Zeit
+                if "timezone" in ip_info:
+                    tz_name = ip_info["timezone"]
+                    message += f"*Timezone:* {tz_name}\n"
+                    
+                    # Lokale Zeit berechnen
+                    try:
+                        from datetime import datetime
+                        import pytz
+                        local_time = datetime.now(pytz.timezone(tz_name))
+                        message += f"*Local Time:* {local_time.strftime('%H:%M:%S')}\n"
+                    except:
+                        pass
+                
+                # ASN und Unternehmen
+                if "org" in ip_info:
+                    message += f"*Organization:* {ip_info['org']}\n"
+                
+                # Missbrauchskontakt
+                if "abuse" in ip_info:
+                    message += f"*Abuse Contact:* {ip_info.get('abuse', {}).get('email', 'N/A')}\n"
+                
+                # Koordinaten und Maps-Link
+                if "loc" in ip_info:
+                    coords = ip_info["loc"]
+                    message += f"*Coordinates:* {coords}\n"
+                    message += f"*[View on Google Maps](https://www.google.com/maps?q={coords})*\n"
+            
+            # IPinfo Link hinzufügen
             if CONFIG["customization"].get("show_ipinfo_link", True):
-                message += f"\nMore Info: https://ipinfo.io/{ip}"
+                message += f"\n[More Details on IPinfo.io](https://ipinfo.io/{ip})"
             
             buttons = [
                 [InlineKeyboardButton(
@@ -852,7 +962,8 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
                 )]
             ]
             
-            await notify_telegram(message, buttons)
+            # Da wir Markdown-Formatierung verwenden
+            await notify_telegram(message, buttons, parse_mode="Markdown")
         
         # Handle "already banned" events
         elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
@@ -865,19 +976,38 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             server = event["server"]
             hostname = event["hostname"] or ip
             
+            # Erweiterte IP-Informationen abrufen
+            ip_info = await NetworkUtils.get_ip_info(ip)
+            
+            # Formatierte Zeit
+            formatted_time = DateUtils.format_timestamp(event['timestamp'])
+            
             logger.info(f"Sending notification for already banned event: {ip} in {jail} on {server}")
             
-            message = (
-                f"⚠️ Repeated Access Attempt\n"
-                f"IP: {hostname} ({ip}) attempted access while already banned\n"
-                f"Jail: {jail}\n"
-                f"Server: {server}\n"
-                f"Time: {event['timestamp']}"
-            )
+            message = f"⚠️ *Repeated Access Attempt*\n\n"
+            message += f"*IP:* {hostname} ({ip}) attempted access while already banned\n"
+            message += f"*Jail:* {jail}\n"
+            message += f"*Server:* {server}\n"
+            message += f"*Time:* {formatted_time}\n"
             
-            # Add IPinfo link if configured
+            # Erweiterte Informationen hinzufügen, wenn verfügbar (kompaktere Form)
+            if ip_info:
+                message += "\n📍 *IP Details:*\n"
+                
+                # Land und Stadt
+                if "country" in ip_info and "flag" in ip_info:
+                    message += f"*Location:* {ip_info['flag']} "
+                    if "city" in ip_info:
+                        message += f"{ip_info['city']}, "
+                    message += f"{ip_info.get('country', '')}\n"
+                
+                # Organisation
+                if "org" in ip_info:
+                    message += f"*Organization:* {ip_info['org']}\n"
+            
+            # IPinfo Link hinzufügen
             if CONFIG["customization"].get("show_ipinfo_link", True):
-                message += f"\nMore Info: https://ipinfo.io/{ip}"
+                message += f"\n[More Details on IPinfo.io](https://ipinfo.io/{ip})"
             
             buttons = [
                 [InlineKeyboardButton(
@@ -886,7 +1016,7 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
                 )]
             ]
             
-            await notify_telegram(message, buttons)
+            await notify_telegram(message, buttons, parse_mode="Markdown")
         
         # Handle "found" events (optional)
         elif event["type"] == "fail2ban_found" and CONFIG.get("notifications", {}).get("fail2ban_found", False):
@@ -900,23 +1030,24 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             server = event["server"]
             hostname = event["hostname"] or ip
             
+            # Formatierte Zeit
+            formatted_time = DateUtils.format_timestamp(event['timestamp'])
+            
             logger.info(f"Found potential attack attempt: {ip} in {jail} on {server}")
             
-            message = (
-                f"🔍 Suspicious Activity Detected\n"
-                f"IP: {hostname} ({ip}) was found in logs\n"
-                f"Jail: {jail}\n"
-                f"Server: {server}\n"
-                f"Time: {event['timestamp']}"
-            )
+            message = f"🔍 *Suspicious Activity Detected*\n\n"
+            message += f"*IP:* {hostname} ({ip}) was found in logs\n"
+            message += f"*Jail:* {jail}\n"
+            message += f"*Server:* {server}\n"
+            message += f"*Time:* {formatted_time}\n"
             
-            # Add IPinfo link if configured
+            # IPinfo Link hinzufügen
             if CONFIG["customization"].get("show_ipinfo_link", True):
-                message += f"\nMore Info: https://ipinfo.io/{ip}"
+                message += f"\n[More Details on IPinfo.io](https://ipinfo.io/{ip})"
             
-            await notify_telegram(message)
+            await notify_telegram(message, parse_mode="Markdown")
 
-async def notify_telegram(message: str, buttons: Optional[List[List[InlineKeyboardButton]]] = None):
+async def notify_telegram(message: str, buttons: Optional[List[List[InlineKeyboardButton]]] = None, parse_mode: Optional[str] = None):
     """Send a notification to the configured Telegram chat"""
     bot = BOT_INSTANCE
     chat_id = CONFIG["telegram"].get("chat_id")
@@ -932,10 +1063,10 @@ async def notify_telegram(message: str, buttons: Optional[List[List[InlineKeyboa
         if buttons:
             markup = InlineKeyboardMarkup(buttons)
             # send directly using bot.send_message instead of do_post
-            await bot.send_message(chat_id=chat_id, text=message, reply_markup=markup)
+            await bot.send_message(chat_id=chat_id, text=message, reply_markup=markup, parse_mode=parse_mode)
         else:
             # send directly using bot.send_message instead of do_post
-            await bot.send_message(chat_id=chat_id, text=message)
+            await bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
         
         logger.info("Notification sent successfully")
     
