@@ -433,38 +433,45 @@ class Fail2BanManager:
 class LogParser:
     """Parse various log formats"""
     
-    # Regular expressions for log parsing
+    # SSH Login Pattern
     SSH_LOGIN_PATTERN = re.compile(
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*sshd\[\d+\]:\s+Accepted\s+(?:publickey|password|keyboard-interactive/pam)\s+for\s+(\S+)\s+from\s+(\S+)'
     )
     
-    # old fail2ban ban pattern
+    # fail2ban Patterns old and new
     FAIL2BAN_BAN_PATTERN_OLD = re.compile(
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)'
     )
     
-    # new fail2ban ban pattern
     FAIL2BAN_BAN_PATTERN_NEW = re.compile(
         r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)'
     )
     
-    # old fail2ban unban pattern
+    # Unban Patterns old and new
     FAIL2BAN_UNBAN_PATTERN_OLD = re.compile(
         r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)'
     )
     
-    # new fail2ban unban pattern
     FAIL2BAN_UNBAN_PATTERN_NEW = re.compile(
         r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+Unban\s+(\S+)'
     )
-    # old fail2ban already banned pattern
+    
+    # Already Banned Patterns old and new
     FAIL2BAN_ALREADY_BANNED_PATTERN_OLD = re.compile(
-        r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
+        r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.actions\[\d+\]:\s+(?:NOTICE|WARNING)\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
     )
     
-    # new fail2ban already banned pattern
     FAIL2BAN_ALREADY_BANNED_PATTERN_NEW = re.compile(
-        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+NOTICE\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
+        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.actions\s+\[\d+\]:\s+(?:NOTICE|WARNING)\s+\[([^\]]+)\]\s+(\S+)\s+already\s+banned'
+    )
+    
+    # Found IP Patterns old and new
+    FAIL2BAN_FOUND_IP_PATTERN_OLD = re.compile(
+        r'(\w{3}\s+\d+\s+\d+:\d+:\d+).*fail2ban\.filter\[\d+\]:\s+INFO\s+\[([^\]]+)\]\s+Found\s+(\S+)\s+-\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}'
+    )
+    
+    FAIL2BAN_FOUND_IP_PATTERN_NEW = re.compile(
+        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+fail2ban\.filter\s+\[\d+\]:\s+INFO\s+\[([^\]]+)\]\s+Found\s+(\S+)\s+-\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}'
     )
     
     
@@ -512,6 +519,8 @@ class LogParser:
         unban_match_new = LogParser.FAIL2BAN_UNBAN_PATTERN_NEW.match(line)
         already_banned_old = LogParser.FAIL2BAN_ALREADY_BANNED_PATTERN_OLD.match(line)
         already_banned_new = LogParser.FAIL2BAN_ALREADY_BANNED_PATTERN_NEW.match(line)
+        found_ip_old = LogParser.FAIL2BAN_FOUND_IP_PATTERN_OLD.match(line)
+        found_ip_new = LogParser.FAIL2BAN_FOUND_IP_PATTERN_NEW.match(line)
         
         if ban_match_old:
             timestamp, jail, ip = ban_match_old.groups()
@@ -531,6 +540,12 @@ class LogParser:
         elif already_banned_new:
             timestamp, jail, ip = already_banned_new.groups()
             event_type = "already_banned"
+        elif found_ip_old:
+            timestamp, jail, ip = found_ip_old.groups()
+            event_type = "found"
+        elif found_ip_new:
+            timestamp, jail, ip = found_ip_new.groups()
+            event_type = "found"
         else:
             logger.debug(f"No match for fail2ban log line: {line}")
             return None
@@ -788,9 +803,17 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
     if event:
         # Handle regular ban events
         if event["type"] == "fail2ban_ban" and CONFIG["notifications"].get("fail2ban_block", True):
+            # ... (bestehender Code für ban Events) ...
+            
+        # Handle "already banned" events
+        elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
+            # ... (bestehender Code für already_banned Events) ...
+            
+        # Handle "found" events (optional)
+        elif event["type"] == "fail2ban_found" and CONFIG.get("notifications", {}).get("fail2ban_found", False):
+            # Diese Ereignisse sind sehr häufig, daher standardmäßig deaktiviert
             # Check if notifications are muted
             if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
-                logger.info(f"Found ban event but notifications are muted: {event}")
                 return
             
             ip = event["ip"]
@@ -798,11 +821,11 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             server = event["server"]
             hostname = event["hostname"] or ip
             
-            logger.info(f"Sending notification for ban event: {ip} in {jail} on {server}")
+            logger.info(f"Found potential attack attempt: {ip} in {jail} on {server}")
             
             message = (
-                f"🛑 IP Banned by fail2ban\n"
-                f"IP: {hostname} ({ip})\n"
+                f"🔍 Suspicious Activity Detected\n"
+                f"IP: {hostname} ({ip}) was found in logs\n"
                 f"Jail: {jail}\n"
                 f"Server: {server}\n"
                 f"Time: {event['timestamp']}"
@@ -812,14 +835,7 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             if CONFIG["customization"].get("show_ipinfo_link", True):
                 message += f"\nMore Info: https://ipinfo.io/{ip}"
             
-            buttons = [
-                [InlineKeyboardButton(
-                    f"Unban {ip}", 
-                    callback_data=f"unban_{server}_{jail}_{ip}"
-                )]
-            ]
-            
-            await notify_telegram(message, buttons)
+            await notify_telegram(message)
             
         # Handle "already banned" events if configured
         elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
