@@ -737,18 +737,24 @@ async def process_ssh_log_line(line: str, server_name: Optional[str] = None):
 
 async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None):
     """Process a new fail2ban log line"""
+    logger.debug(f"Processing fail2ban log line: {line}")
     event = await LogParser.parse_fail2ban_log_line(line, server_name)
+    
+    logger.debug(f"Parsed event: {event}")
     
     if event:
         if event["type"] == "fail2ban_ban" and CONFIG["notifications"].get("fail2ban_block", True):
             # Check if notifications are muted
             if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
+                logger.info(f"Found ban event but notifications are muted: {event}")
                 return
             
             ip = event["ip"]
             jail = event["jail"]
             server = event["server"]
             hostname = event["hostname"] or ip
+            
+            logger.info(f"Sending notification for ban event: {ip} in {jail} on {server}")
             
             message = (
                 f"🛑 IP Banned by fail2ban\n"
