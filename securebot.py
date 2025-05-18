@@ -417,20 +417,21 @@ class Fail2BanManager:
     @staticmethod
     async def unban_ip(ip: str, jail: str, server_name: Optional[str] = None) -> Tuple[bool, str]:
         """Unban an IP from a specific jail"""
-        logger.critical(f"Unban request with ip={ip}, jail={jail}")
         command = f"sudo fail2ban-client set {jail} unbanip {ip}"
-        logger.critical(f"Executing command: {command}")
+        logger.debug(f"Executing command: {command}")
         
         if server_name:
             return await SSHManager.execute_command(server_name, command)
         else:
-            # Execute locally
+            # Execute locally (direkt ausführen, nicht über SSH-Manager)
             try:
-                subprocess.check_output(command, shell=True, text=True)
+                output = subprocess.check_output(command, shell=True, text=True, stderr=subprocess.PIPE)
+                logger.info(f"Successfully unbanned {ip} from {jail}")
                 return True, f"Successfully unbanned {ip} from {jail}"
             except subprocess.CalledProcessError as e:
-                logger.error(f"Error unbanning IP {ip} from jail {jail}: {e}")
-                return False, str(e)
+                error_msg = e.stderr.strip() if e.stderr else str(e)
+                logger.error(f"Error unbanning IP {ip} from jail {jail}: {error_msg}")
+                return False, error_msg
 
 class LogParser:
     """Parse various log formats"""
