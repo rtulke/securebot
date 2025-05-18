@@ -803,17 +803,9 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
     if event:
         # Handle regular ban events
         if event["type"] == "fail2ban_ban" and CONFIG["notifications"].get("fail2ban_block", True):
-            # ... (bestehender Code für ban Events) ...
-            
-        # Handle "already banned" events
-        elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
-            # ... (bestehender Code für already_banned Events) ...
-            
-        # Handle "found" events (optional)
-        elif event["type"] == "fail2ban_found" and CONFIG.get("notifications", {}).get("fail2ban_found", False):
-            # Diese Ereignisse sind sehr häufig, daher standardmäßig deaktiviert
             # Check if notifications are muted
             if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
+                logger.info(f"Found ban event but notifications are muted: {event}")
                 return
             
             ip = event["ip"]
@@ -821,11 +813,11 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             server = event["server"]
             hostname = event["hostname"] or ip
             
-            logger.info(f"Found potential attack attempt: {ip} in {jail} on {server}")
+            logger.info(f"Sending notification for ban event: {ip} in {jail} on {server}")
             
             message = (
-                f"🔍 Suspicious Activity Detected\n"
-                f"IP: {hostname} ({ip}) was found in logs\n"
+                f"🛑 IP Banned by fail2ban\n"
+                f"IP: {hostname} ({ip})\n"
                 f"Jail: {jail}\n"
                 f"Server: {server}\n"
                 f"Time: {event['timestamp']}"
@@ -835,13 +827,17 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             if CONFIG["customization"].get("show_ipinfo_link", True):
                 message += f"\nMore Info: https://ipinfo.io/{ip}"
             
-            await notify_telegram(message)
+            buttons = [
+                [InlineKeyboardButton(
+                    f"Unban {ip}", 
+                    callback_data=f"unban_{server}_{jail}_{ip}"
+                )]
+            ]
             
-        # Handle "already banned" events if configured
+            await notify_telegram(message, buttons)
+        
+        # Handle "already banned" events
         elif event["type"] == "fail2ban_already_banned" and CONFIG["notifications"].get("fail2ban_block", True):
-            # Optional: Benachrichtigungen für "already banned" können separat konfiguriert werden
-            # Für jetzt nutzen wir die gleiche Einstellung wie für normale Blockierungen
-            
             # Check if notifications are muted
             if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
                 return
@@ -873,6 +869,34 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
             ]
             
             await notify_telegram(message, buttons)
+        
+        # Handle "found" events (optional)
+        elif event["type"] == "fail2ban_found" and CONFIG.get("notifications", {}).get("fail2ban_found", False):
+            # Diese Ereignisse sind sehr häufig, daher standardmäßig deaktiviert
+            # Check if notifications are muted
+            if NOTIFICATION_MUTED and time.time() < MUTE_UNTIL:
+                return
+            
+            ip = event["ip"]
+            jail = event["jail"]
+            server = event["server"]
+            hostname = event["hostname"] or ip
+            
+            logger.info(f"Found potential attack attempt: {ip} in {jail} on {server}")
+            
+            message = (
+                f"🔍 Suspicious Activity Detected\n"
+                f"IP: {hostname} ({ip}) was found in logs\n"
+                f"Jail: {jail}\n"
+                f"Server: {server}\n"
+                f"Time: {event['timestamp']}"
+            )
+            
+            # Add IPinfo link if configured
+            if CONFIG["customization"].get("show_ipinfo_link", True):
+                message += f"\nMore Info: https://ipinfo.io/{ip}"
+            
+            await notify_telegram(message)
 
 async def notify_telegram(message: str, buttons: Optional[List[List[InlineKeyboardButton]]] = None):
     """Send a notification to the configured Telegram chat"""
