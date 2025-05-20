@@ -2,7 +2,7 @@
 
 A Telegram bot for monitoring SSH logins and managing fail2ban across multiple systems.
 
-![Telegram Apple iPhone App](/demo/telegram_phone_app.jpg)
+![Telegram Apple iPhone App](/demo/demo_telegram_phone.jpg)
 
 
 ## Features
