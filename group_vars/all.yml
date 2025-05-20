@@ -4,13 +4,13 @@ telegram_chat_id: "YOUR_CHAT_ID"      # Your Telegram chat ID or group ID
 
 # Admin and viewer users
 admin_users:
-  - 123456789  # Your Telegram User ID (admin)
+  - 123456789                         # Your Telegram User ID (admin) ask the @userinfobot for your ID
 viewer_users:
-  - 987654321  # Optional: Other users who can view but not manage
+  - 987654321                         # Optional: Other users who can see, but not manage, also ask the @userinfobot for other IDs from the other ID
 
 # Bot configuration
-log_level: "INFO"     # DEBUG, INFO, WARNING, ERROR
-local_only: false     # Set to true to only monitor the local system
+log_level: "INFO"                     # DEBUG, INFO, WARNING, ERROR
+local_only: false                     # Set to true to only monitor the local system
 
 # Notification settings
 notification_settings:
