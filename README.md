@@ -11,6 +11,7 @@ A Telegram bot for monitoring SSH logins and managing fail2ban across multiple s
 - Real-time notifications
 - Configurable notification settings
 - Access control (admin/viewer roles)
+- Easy Ansible Deployment for managing multiple servers
 
 ## Requirements
 
