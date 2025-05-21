@@ -57,6 +57,9 @@ DEFAULT_CONFIG = {
         "admin_users": [],
         "viewer_users": []
     },
+    "permanent_bans": {
+        
+    },  
     "local": {
         "ssh_log": "/var/log/auth.log",
         "fail2ban_log": "/var/log/fail2ban.log",
