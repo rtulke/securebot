@@ -820,15 +820,14 @@ class FileWatcher:
                     # Process each new line
                     for line in new_content.splitlines():
                         if line.strip():
-                            # Verwende asyncio.run für jeden Aufruf, sicherer als getEventLoop/setEventLoop
-                            # Das umgeht Probleme mit Thread-Safety
-                            future = asyncio.run_coroutine_threadsafe(
-                                self.callback(line, self.server_name),
-                                asyncio.get_event_loop()
-                            )
-                            # Optional: auf Ergebnisse warten oder Fehler abfangen
-                            # result = future.result()
-                
+                            # Wir verwenden hier einen einfacheren Ansatz mit einem Thread-Pool
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                loop.run_until_complete(self.callback(line, self.server_name))
+                            finally:
+                                loop.close()
+                                
                 except Exception as e:
                     logger.error(f"Error processing file change: {e}")
        
@@ -2000,31 +1999,44 @@ async def run_telegram_bot():
     
     # Add callback query handler for buttons
     application.add_handler(CallbackQueryHandler(button_callback))
-    asyncio.create_task(Fail2BanManager.ensure_permanent_bans())  # Mit Klassennamen
+    asyncio.create_task(Fail2BanManager.ensure_permanent_bans())
 
-    
-    # Start the bot
-    await application.initialize()
-    await application.start()
-    
-    # Notify admin that the bot has started
-    admin_users = CONFIG["telegram"].get("admin_users", [])
-    if admin_users:
-        try:
-            message = f"🚀 SecureBot v{__version__} started"
-            for admin_id in admin_users:
-                await BOT_INSTANCE.send_message(chat_id=admin_id, text=message)
-        except Exception as e:
-            logger.error(f"Error sending startup notification: {e}")
-    
-    # Run the bot until the application is stopped
     try:
-        await application.updater.start_polling()
-        logger.info("Telegram bot is running")
+        # Start the bot
+        await application.initialize()
+        await application.start()
         
-        # Keep the bot running
-        while RUNNING:
-            await asyncio.sleep(1)
+        # Notify admin that the bot has started
+        admin_users = CONFIG["telegram"].get("admin_users", [])
+        if admin_users:
+            try:
+                message = f"🚀 SecureBot v{__version__} started"
+                for admin_id in admin_users:
+                    await BOT_INSTANCE.send_message(chat_id=admin_id, text=message)
+            except Exception as e:
+                logger.error(f"Error sending startup notification: {e}")
+        
+        # Run the bot until the application is stopped
+        try:
+            await application.updater.start_polling()
+            logger.info("Telegram bot is running")
+            
+            # Keep the bot running
+            while RUNNING:
+                await asyncio.sleep(1)
+        
+        except telegram.error.Conflict as e:
+            logger.error(f"Bot conflict detected: {e}")
+            logger.error("Another instance of this bot is already running. Shutting down.")
+            # Signal hauptprogramm to exit
+            global RUNNING
+            RUNNING = False
+            return
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in bot polling: {e}")
+            RUNNING = False
+            return
     
     finally:
         # Stop the bot
