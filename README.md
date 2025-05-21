@@ -2,6 +2,24 @@
 
 A Telegram bot for monitoring SSH logins and managing fail2ban across multiple systems.
 
+
+<table>
+    <thead>
+        <tr>
+            <th>Demo Banned IP</th>
+            <th>Demo Commands</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><img src="/demo/demo_phone_banned_ip.jpg" width=25% height=25%></td>
+        </tr>
+        <tr>
+            <td><img src="/demo/demo_phone_commands.jpg" width=25% height=25%></td>
+          
+        </tr>
+    </tbody>
+</table>
 <img src="/demo/demo_phone_banned_ip.jpg" width=25% height=25%><img src="/demo/demo_phone_commands.jpg" width=25% height=25%>
 
 
