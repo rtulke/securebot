@@ -1978,6 +1978,8 @@ async def stop_monitoring():
 
 async def run_telegram_bot():
     """Run the Telegram bot"""
+    global RUNNING  # Hier an den Anfang der Funktion verschieben
+    
     bot_token = CONFIG["telegram"].get("bot_token")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN":
         logger.error("Telegram bot token not configured")
@@ -2029,7 +2031,6 @@ async def run_telegram_bot():
             logger.error(f"Bot conflict detected: {e}")
             logger.error("Another instance of this bot is already running. Shutting down.")
             # Signal hauptprogramm to exit
-            global RUNNING
             RUNNING = False
             return
         
