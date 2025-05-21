@@ -1704,6 +1704,68 @@ async def fail2ban_command(update: Update, context: CallbackContext) -> None:
             "/fail2ban unban IP JAIL [server] - Unban an IP from a jail"
         )
 
+async def permanent_bans_command(update: Update, context: CallbackContext) -> None:
+    """Handle the /perm_bans command"""
+    user_id = update.effective_user.id
+    if not is_authorized(user_id) or not is_admin_user(user_id):
+        await update.message.reply_text("Unauthorized access. Admin privileges required.")
+        return
+    
+    # Parse arguments
+    args = context.args
+    
+    if not args or args[0].lower() == "list":
+        # List all permanent bans
+        perm_bans = await Fail2BanManager.list_permanent_bans()
+        
+        if not perm_bans:
+            await update.message.reply_text("No permanent IP bans configured.")
+            return
+        
+        message = "🔒 Permanent IP Bans:\n\n"
+        for ip, data in perm_bans.items():
+            timestamp = data.get("timestamp", "Unknown date")
+            reason = data.get("reason", "No reason specified")
+            banned_by = data.get("banned_by", "Unknown")
+            
+            message += f"- {ip}\n"
+            message += f"  Banned on: {timestamp}\n"
+            message += f"  Reason: {reason}\n"
+            message += f"  Banned by: {banned_by}\n\n"
+        
+        await update.message.reply_text(message)
+    
+    elif args[0].lower() == "add" and len(args) > 1:
+        # Add a permanent ban
+        ip = args[1]
+        reason = " ".join(args[2:]) if len(args) > 2 else "Manual permanent ban"
+        
+        success, result = await Fail2BanManager.ban_ip_permanently(ip, reason, user_id)
+        
+        if success:
+            await update.message.reply_text(f"✅ {result}")
+        else:
+            await update.message.reply_text(f"❌ {result}")
+    
+    elif args[0].lower() == "remove" and len(args) > 1:
+        # Remove a permanent ban
+        ip = args[1]
+        success, result = await Fail2BanManager.remove_permanent_ban(ip)
+        
+        if success:
+            await update.message.reply_text(f"✅ {result}")
+        else:
+            await update.message.reply_text(f"❌ {result}")
+    
+    else:
+        # Show help
+        await update.message.reply_text(
+            "Usage:\n"
+            "/perm_bans list - List all permanent bans\n"
+            "/perm_bans add IP [reason] - Add a permanent ban\n"
+            "/perm_bans remove IP - Remove a permanent ban"
+        )
+
 async def mute_command(update: Update, context: CallbackContext) -> None:
     """Handle the /mute command"""
     user_id = update.effective_user.id
