@@ -1948,7 +1948,7 @@ async def start_monitoring():
     
     # Stelle sicher, dass alle permanenten Bans aktiv sind
     logger.info("Ensuring permanent bans are active...")
-    await ensure_permanent_bans()
+    await Fail2BanManager.ensure_permanent_bans()
     
     # Set up remote monitoring if not in local-only mode
     if not CONFIG["general"].get("local_only", False) and "servers" in CONFIG:
@@ -2000,7 +2000,7 @@ async def run_telegram_bot():
     
     # Add callback query handler for buttons
     application.add_handler(CallbackQueryHandler(button_callback))
-    asyncio.create_task(ensure_permanent_bans())
+    asyncio.create_task(Fail2BanManager.ensure_permanent_bans())  # Mit Klassennamen
 
     
     # Start the bot
