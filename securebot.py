@@ -2048,36 +2048,42 @@ async def run_daemon():
     """Run the bot as a daemon"""
     logger.info("Starting bot in daemon mode")
     
-    # Start monitoring
-    if await start_monitoring():
-        # Set up local file watchers
-        await setup_local_watchers()
+    try:
+        # Start monitoring
+        if await start_monitoring():
+            # Set up local file watchers
+            await setup_local_watchers()
+            
+            # As Backup for local log files, we can use periodic checks
+            if CONFIG["local"].get("fail2ban_log") and os.path.exists(CONFIG["local"].get("fail2ban_log")):
+                logger.info(f"Setting up periodic checks for local fail2ban log")
+                asyncio.create_task(periodic_check_log(
+                    "localhost", 
+                    CONFIG["local"].get("fail2ban_log"), 
+                    process_fail2ban_log_line, 
+                    interval=5
+                ))
+            
+            # As Backup for local log files, we can use periodic checks
+            if CONFIG["local"].get("ssh_log") and os.path.exists(CONFIG["local"].get("ssh_log")):
+                logger.info(f"Setting up periodic checks for local SSH log")
+                asyncio.create_task(periodic_check_log(
+                    "localhost", 
+                    CONFIG["local"].get("ssh_log"), 
+                    process_ssh_log_line, 
+                    interval=5
+                ))
+            
+            # Run the Telegram bot
+            await run_telegram_bot()
         
-        # As Backup for local log files, we can use periodic checks
-        if CONFIG["local"].get("fail2ban_log") and os.path.exists(CONFIG["local"].get("fail2ban_log")):
-            logger.info(f"Setting up periodic checks for local fail2ban log")
-            asyncio.create_task(periodic_check_log(
-                "localhost", 
-                CONFIG["local"].get("fail2ban_log"), 
-                process_fail2ban_log_line, 
-                interval=5
-            ))
-        
-        # As Backup for local log files, we can use periodic checks
-        if CONFIG["local"].get("ssh_log") and os.path.exists(CONFIG["local"].get("ssh_log")):
-            logger.info(f"Setting up periodic checks for local SSH log")
-            asyncio.create_task(periodic_check_log(
-                "localhost", 
-                CONFIG["local"].get("ssh_log"), 
-                process_ssh_log_line, 
-                interval=5
-            ))
-        
-        # Run the Telegram bot
-        await run_telegram_bot()
+        # Stop monitoring
+        await stop_monitoring()
     
-    # Stop monitoring
-    await stop_monitoring()
+    except Exception as e:
+        logger.error(f"Fatal error in daemon mode: {e}")
+        await stop_monitoring()
+        raise
 
 def handle_signal(signum, frame):
     """Handle termination signals"""
@@ -2232,13 +2238,24 @@ def main():
     # Run as daemon or in foreground
     if args.daemon:
         # Run as daemon
-        asyncio.run(run_daemon())
+        try:
+            asyncio.run(run_daemon())
+        except KeyboardInterrupt:
+            print("Bot stopped by user")
+        except Exception as e:
+            print(f"Error: {e}")
+            # Exitcode 1 für Fehler
+            sys.exit(1)
     else:
         # Run in foreground
         try:
             asyncio.run(run_daemon())
         except KeyboardInterrupt:
             print("Bot stopped by user")
+        except Exception as e:
+            print(f"Error: {e}")
+            # Exitcode 1 für Fehler
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
