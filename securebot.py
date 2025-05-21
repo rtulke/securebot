@@ -820,15 +820,14 @@ class FileWatcher:
                     # Process each new line
                     for line in new_content.splitlines():
                         if line.strip():
-                            # Erstelle einen neuen Event-Loop für diesen Thread, wenn keiner vorhanden ist
-                            try:
-                                loop = asyncio.get_event_loop()
-                            except RuntimeError:
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                            
-                            # Führe die Koroutine synchron aus
-                            loop.run_until_complete(self.callback(line, self.server_name))
+                            # Verwende asyncio.run für jeden Aufruf, sicherer als getEventLoop/setEventLoop
+                            # Das umgeht Probleme mit Thread-Safety
+                            future = asyncio.run_coroutine_threadsafe(
+                                self.callback(line, self.server_name),
+                                asyncio.get_event_loop()
+                            )
+                            # Optional: auf Ergebnisse warten oder Fehler abfangen
+                            # result = future.result()
                 
                 except Exception as e:
                     logger.error(f"Error processing file change: {e}")
@@ -1400,7 +1399,7 @@ async def server_command(update: Update, context: CallbackContext) -> None:
         # try to get the message from the callback query
         if update.callback_query:
             await update.callback_query.answer()
-            await update.callback_query.edit_message_text("Verwendung:\n/server list - Liste aller konfigurierten Server\n/server status NAME - Status eines bestimmten Servers anzeigen")
+            await update.callback_query.edit_message_text("Usage:\n/server list - List all configured servers\n/server status NAME - Show status of a specific server")
         return
     
     user_id = update.effective_user.id
