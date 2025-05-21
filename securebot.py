@@ -477,21 +477,53 @@ class Fail2BanManager:
         
         return True, f"Removed permanent ban for {ip}"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    @staticmethod
+    async def ensure_permanent_bans() -> Tuple[bool, str]:
+        """Ensure all permanent bans are active across all systems"""
+        logger.info("Verifying permanent bans are active")
+        
+        if "permanent_bans" not in CONFIG or not CONFIG["permanent_bans"]:
+            logger.info("No permanent bans configured")
+            return True, "No permanent bans configured"
+        
+        success = True
+        errors = []
+        
+        # Re-apply all permanent bans
+        for ip, ban_data in CONFIG["permanent_bans"].items():
+            logger.info(f"Ensuring IP {ip} is banned (reason: {ban_data.get('reason', 'Permanent ban')})")
+            
+            # 1. Lokale Jails
+            local_success, jails = await Fail2BanManager.list_jails()
+            if local_success and jails:
+                for jail in jails:
+                    ban_success, result = await Fail2BanManager.ban_ip(ip, jail)
+                    if not ban_success:
+                        success = False
+                        errors.append(f"Failed to ban in local jail {jail}: {result}")
+            
+            # 2. Remote Server Jails
+            if not CONFIG["general"].get("local_only", False) and "servers" in CONFIG:
+                for server_name, server_config in CONFIG["servers"].items():
+                    server_success, server_jails = await Fail2BanManager.list_jails(server_name)
+                    if server_success and server_jails:
+                        for jail in server_jails:
+                            ban_success, result = await Fail2BanManager.ban_ip(ip, jail, server_name)
+                            if not ban_success:
+                                success = False
+                                errors.append(f"Failed to ban in {server_name} jail {jail}: {result}")
+            
+            # 3. Optional: iptables-Regel hinzufügen
+            try:
+                command = f"sudo iptables -A INPUT -s {ip} -j DROP"
+                subprocess.check_output(command, shell=True, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Could not add iptables rule for {ip}: {e}")
+        
+        if success:
+            return True, "Successfully verified all permanent bans"
+        else:
+            return False, f"Errors while verifying permanent bans: {', '.join(errors)}"
     
     # command /fail2ban all
     @staticmethod
