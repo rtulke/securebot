@@ -390,6 +390,106 @@ class SSHManager:
 
 class Fail2BanManager:
     """Manage fail2ban operations"""
+    @staticmethod
+    async def ban_ip_permanently(ip: str, reason: str = "Manual permanent ban", user_id: int = None) -> Tuple[bool, str]:
+        """Ban an IP permanently across all servers and jails"""
+        logger.info(f"Banning IP {ip} permanently")
+        
+        # Speichere in Konfiguration
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        if "permanent_bans" not in CONFIG:
+            CONFIG["permanent_bans"] = {}
+        
+        CONFIG["permanent_bans"][ip] = {
+            "timestamp": timestamp,
+            "reason": reason,
+            "banned_by": user_id
+        }
+        
+        # Konfiguration speichern
+        config_path = os.environ.get("SECUREBOT_CONFIG", "/etc/securebot.conf")
+        ConfigManager.save_config(CONFIG, config_path)
+        
+        # IP in allen lokalen Jails sperren
+        success = True
+        error_messages = []
+        
+        # 1. Lokale Jails
+        local_success, jails = await Fail2BanManager.list_jails()
+        if local_success and jails:
+            for jail in jails:
+                ban_success, result = await Fail2BanManager.ban_ip(ip, jail)
+                if not ban_success:
+                    success = False
+                    error_messages.append(f"Failed to ban in local jail {jail}: {result}")
+        
+        # 2. Remote Server Jails
+        if not CONFIG["general"].get("local_only", False) and "servers" in CONFIG:
+            for server_name, server_config in CONFIG["servers"].items():
+                server_success, server_jails = await Fail2BanManager.list_jails(server_name)
+                if server_success and server_jails:
+                    for jail in server_jails:
+                        ban_success, result = await Fail2BanManager.ban_ip(ip, jail, server_name)
+                        if not ban_success:
+                            success = False
+                            error_messages.append(f"Failed to ban in {server_name} jail {jail}: {result}")
+        
+        # Optional: Zusätzlich iptables-Regel für noch robustere Sperrung hinzufügen
+        try:
+            command = f"sudo iptables -A INPUT -s {ip} -j DROP"
+            subprocess.check_output(command, shell=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Could not add iptables rule for {ip}: {e}")
+        
+        if success:
+            return True, f"Successfully banned {ip} permanently across all servers and jails"
+        else:
+            return False, f"Partial permanent ban for {ip}. Errors: {', '.join(error_messages)}"
+    
+    @staticmethod
+    async def list_permanent_bans() -> Dict[str, Dict[str, Any]]:
+        """List all permanent bans"""
+        return CONFIG.get("permanent_bans", {})
+    
+    @staticmethod
+    async def remove_permanent_ban(ip: str) -> Tuple[bool, str]:
+        """Remove a permanent ban"""
+        if "permanent_bans" not in CONFIG or ip not in CONFIG["permanent_bans"]:
+            return False, f"IP {ip} is not permanently banned"
+        
+        # Aus Konfiguration entfernen
+        del CONFIG["permanent_bans"][ip]
+        
+        # Konfiguration speichern
+        config_path = os.environ.get("SECUREBOT_CONFIG", "/etc/securebot.conf")
+        ConfigManager.save_config(CONFIG, config_path)
+        
+        # Optional: iptables-Regel entfernen
+        try:
+            command = f"sudo iptables -D INPUT -s {ip} -j DROP"
+            subprocess.check_output(command, shell=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            pass
+        
+        return True, f"Removed permanent ban for {ip}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     # command /fail2ban all
     @staticmethod
     async def get_all_banned_ips(server_name: Optional[str] = None) -> Dict[str, List[str]]:
@@ -956,10 +1056,16 @@ async def process_fail2ban_log_line(line: str, server_name: Optional[str] = None
                 message += f"\n[More Details on IPinfo.io](https://ipinfo.io/{ip})"
             
             buttons = [
-                [InlineKeyboardButton(
-                    f"Unban {ip}", 
-                    callback_data=f"unban_{server}_{jail}_{ip}"
-                )]
+                [
+                    InlineKeyboardButton(
+                        f"Unban {ip}", 
+                        callback_data=f"unban_{server}_{jail}_{ip}"
+                    ),
+                    InlineKeyboardButton(
+                        f"Permanent {ip}", 
+                        callback_data=f"perm_ban_{server}_{jail}_{ip}"
+                    )
+                ]
             ]
             
             # Da wir Markdown-Formatierung verwenden
