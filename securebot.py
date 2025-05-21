@@ -1122,10 +1122,16 @@ async def help_command(update: Update, context: CallbackContext) -> None:
     if is_admin:
         help_text += (
             "\n📊 Admin commands:\n"
+            "/fail2ban all - Show all banned IPs across all jails\n"
+            "/fail2ban all_ips - Show all banned IPs (alias for 'all')\n"
             "/fail2ban list [server] - List fail2ban jails\n"
             "/fail2ban status JAIL [server] - Show banned IPs in a jail\n"
             "/fail2ban ban IP JAIL [server] - Ban an IP in a jail\n"
             "/fail2ban unban IP JAIL [server] - Unban an IP from a jail\n"
+            "\n🔒 Permanent ban management (new):\n"
+            "/perm_bans list - List all permanent bans\n"
+            "/perm_bans add IP [reason] - Add a permanent ban\n"
+            "/perm_bans remove IP - Remove a permanent ban\n"
         )
     
     await update.message.reply_text(help_text)
