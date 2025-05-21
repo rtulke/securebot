@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+Bz#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 SecureBot - Telegram Security Bot
@@ -1825,6 +1825,10 @@ async def start_monitoring():
     # Set up local file watchers
     await setup_local_watchers()
     
+    # Stelle sicher, dass alle permanenten Bans aktiv sind
+    logger.info("Ensuring permanent bans are active...")
+    await ensure_permanent_bans()
+    
     # Set up remote monitoring if not in local-only mode
     if not CONFIG["general"].get("local_only", False) and "servers" in CONFIG:
         for server_name, server_config in CONFIG["servers"].items():
@@ -1869,11 +1873,14 @@ async def run_telegram_bot():
     application.add_handler(CommandHandler("login_history", login_history_command))
     application.add_handler(CommandHandler("server", server_command))
     application.add_handler(CommandHandler("fail2ban", fail2ban_command))
+    application.add_handler(CommandHandler("perm_bans", permanent_bans_command))
     application.add_handler(CommandHandler("mute", mute_command))
     application.add_handler(CommandHandler("unmute", unmute_command))
     
     # Add callback query handler for buttons
     application.add_handler(CallbackQueryHandler(button_callback))
+    asyncio.create_task(ensure_permanent_bans())
+
     
     # Start the bot
     await application.initialize()
