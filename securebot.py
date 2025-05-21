@@ -1748,9 +1748,12 @@ async def button_callback(update: Update, context: CallbackContext) -> None:
     data = query.data
     
     if data.startswith("unban_"):
-        # Unban an IP
+        # Existierender Code für Unban...
+    
+    elif data.startswith("perm_ban_"):
+        # Permanent Ban-Logik
         if not is_admin_user(user_id):
-            await query.edit_message_text(text="Admin privileges required to unban IPs.")
+            await query.edit_message_text(text="Admin privileges required for permanent bans.")
             return
         
         # Parse callback data
@@ -1762,16 +1765,21 @@ async def button_callback(update: Update, context: CallbackContext) -> None:
         _, server, jail, ip = parts
         server_name = None if server == "local" else server
         
-        # Unban the IP
-        success, result = await Fail2BanManager.unban_ip(ip, jail, server_name)
+        # Permanent ban durchführen
+        success, result = await Fail2BanManager.ban_ip_permanently(
+            ip, 
+            reason=f"Permanent ban from jail {jail}",
+            user_id=user_id
+        )
         
         if success:
             await query.edit_message_text(
-                text=f"✅ Successfully unbanned {ip} from jail '{jail}' on {server_name or 'localhost'}."
+                text=f"🔒 Permanently banned {ip} across all servers and jails.\n\n"
+                     f"This IP will be automatically re-banned even after fail2ban restarts."
             )
         else:
             await query.edit_message_text(
-                text=f"❌ Failed to unban {ip}: {result}"
+                text=f"⚠️ Partial permanent ban for {ip}: {result}"
             )
 
 def is_authorized(user_id: int) -> bool:
