@@ -2,7 +2,7 @@
 
 A Telegram bot for monitoring SSH logins and managing fail2ban across multiple systems.
 
-| Securbot in action                                              | Commands                                                       |
+| Securbot in action                                              | Securebot Commands                                             |
 | :-------------------------------------------------------------- | :------------------------------------------------------------- |
 | <img src="/demo/demo_phone_banned_ip.jpg" width=60% height=60%> | <img src="/demo/demo_phone_commands.jpg" width=60% height=60%> |
 
